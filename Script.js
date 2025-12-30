@@ -228,6 +228,10 @@ function initializeModal() {
         document.getElementById('platformFee').value = 10.0;
         document.getElementById('purchaseSiteCustom').disabled = true;
         
+        // 새 필드 초기화
+        document.getElementById('purchaseUrl').value = '';
+        document.getElementById('shippingMethod').value = 'direct';
+        
         // 계산 결과 초기화
         document.getElementById('calcTotalCost').textContent = '0원';
         document.getElementById('calcProfit').textContent = '0원';
@@ -453,6 +457,8 @@ async function addTransaction() {
         purchaseDate: document.getElementById('purchaseDate').value,
         purchaseSite: document.getElementById('purchaseSite').value,
         purchaseSiteCustom: document.getElementById('purchaseSiteCustom').value,
+        purchaseUrl: document.getElementById('purchaseUrl').value || '',
+        shippingMethod: document.getElementById('shippingMethod').value,
         purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
         internationalShipping: parseFloat(document.getElementById('internationalShipping').value) || 0,
         currency: document.getElementById('currency').value,
@@ -601,6 +607,8 @@ function editTransaction(id) {
     document.getElementById('purchaseDate').value = transaction.purchaseDate;
     document.getElementById('purchaseSite').value = transaction.purchaseSite;
     document.getElementById('purchaseSiteCustom').value = transaction.purchaseSiteCustom || '';
+    document.getElementById('purchaseUrl').value = transaction.purchaseUrl || '';
+    document.getElementById('shippingMethod').value = transaction.shippingMethod || 'direct';
     document.getElementById('purchasePrice').value = transaction.purchasePrice;
     document.getElementById('internationalShipping').value = transaction.internationalShipping || 0;
     document.getElementById('currency').value = transaction.currency;
@@ -671,6 +679,16 @@ function displayTransactions() {
                 <div class="detail-item">
                     <span class="detail-label">구매사이트</span>
                     <span class="detail-value">${getPurchaseSiteName(t.purchaseSite, t.purchaseSiteCustom)}</span>
+                </div>
+                ${t.purchaseUrl ? `
+                <div class="detail-item">
+                    <span class="detail-label">상품 URL</span>
+                    <span class="detail-value"><a href="${t.purchaseUrl}" target="_blank" style="color: #4a90e2; text-decoration: underline;">링크 바로가기 🔗</a></span>
+                </div>
+                ` : ''}
+                <div class="detail-item">
+                    <span class="detail-label">배송 방식</span>
+                    <span class="detail-value">${t.shippingMethod === 'direct' ? '직배송' : '배대지'}</span>
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">구매가격</span>
@@ -1782,7 +1800,7 @@ function exportToExcel() {
     }
 
     let csv = '\ufeff'; // UTF-8 BOM
-    csv += '구매일자,구매자명,연락처,배송지주소,브랜드,품명,수량,구매사이트,구매가격,구매가격통화,구매가격환율,해외배송비,배송비통화,배송비환율,구매가격(원),해외배송비(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
+    csv += '구매일자,구매자명,연락처,배송지주소,브랜드,품명,수량,구매사이트,상품URL,구매가격,구매가격통화,구매가격환율,배송방식,해외배송비,배송비통화,배송비환율,구매가격(원),해외배송비(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
     
     filteredTransactions.forEach(t => {
         csv += [
@@ -1794,9 +1812,11 @@ function exportToExcel() {
             t.productName,
             t.quantity,
             getPurchaseSiteName(t.purchaseSite, t.purchaseSiteCustom),
+            t.purchaseUrl || '',
             t.purchasePrice.toFixed(2),
             t.currency,
             t.exchangeRate.toFixed(2),
+            t.shippingMethod === 'direct' ? '직배송' : '배대지',
             (t.internationalShipping || 0).toFixed(2),
             t.shippingCurrency || t.currency,
             (t.shippingExchangeRate || 0).toFixed(2),
