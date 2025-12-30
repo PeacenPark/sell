@@ -108,7 +108,9 @@
                     </div>
                     <div class="filter-group">
                         <label for="filterBrand">브랜드</label>
-                        <input type="text" id="filterBrand" placeholder="브랜드 검색">
+                        <select id="filterBrand">
+                            <option value="">전체</option>
+                        </select>
                     </div>
                     <div class="filter-group">
                         <label for="filterProduct">품명</label>
@@ -118,12 +120,6 @@
                         <label for="filterPurchaseSite">구매사이트</label>
                         <select id="filterPurchaseSite">
                             <option value="">전체</option>
-                            <option value="amazon">Amazon</option>
-                            <option value="ebay">eBay</option>
-                            <option value="aliexpress">AliExpress</option>
-                            <option value="rakuten">楽天</option>
-                            <option value="iherb">iHerb</option>
-                            <option value="costco">Costco</option>
                             <option value="other">기타</option>
                         </select>
                     </div>
@@ -187,9 +183,24 @@
                 </div>
 
                 <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label for="buyerAddress">배송지 주소</label>
+                        <input type="text" id="buyerAddress" placeholder="배송지 주소 입력">
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="brand">브랜드 *</label>
-                        <input type="text" id="brand" required>
+                        <div class="input-with-button">
+                            <select id="brand" required>
+                                <option value="">브랜드 선택</option>
+                                <option value="custom">직접 입력</option>
+                            </select>
+                            <button type="button" class="btn-add" id="addBrandBtn" title="브랜드 추가">➕</button>
+                            <button type="button" class="btn-remove" id="removeBrandBtn" title="브랜드 삭제">❌</button>
+                        </div>
+                        <input type="text" id="brandCustom" placeholder="브랜드명 직접 입력" style="display: none; margin-top: 8px;">
                     </div>
                     <div class="form-group">
                         <label for="productName">품명 *</label>
@@ -211,15 +222,14 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="purchaseSite">구매사이트 *</label>
-                        <select id="purchaseSite" required>
-                            <option value="amazon">Amazon (아마존)</option>
-                            <option value="ebay">eBay (이베이)</option>
-                            <option value="aliexpress">AliExpress (알리익스프레스)</option>
-                            <option value="rakuten">楽天 (라쿠텐)</option>
-                            <option value="iherb">iHerb (아이허브)</option>
-                            <option value="costco">Costco (코스트코)</option>
-                            <option value="other">기타</option>
-                        </select>
+                        <div class="input-with-button">
+                            <select id="purchaseSite" required>
+                                <option value="">사이트 선택</option>
+                                <option value="other">기타</option>
+                            </select>
+                            <button type="button" class="btn-add" id="addSiteBtn" title="구매사이트 추가">➕</button>
+                            <button type="button" class="btn-remove" id="removeSiteBtn" title="구매사이트 삭제">❌</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="purchaseSiteCustom">사이트명 (기타 선택시)</label>
