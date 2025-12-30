@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializeForm();
     initializeFilters();
     initializeButtons();
-    loadCustomDropdownItems(); // 커스텀 드롭다운 항목 로드
+    await loadCustomDropdownItems(); // 커스텀 드롭다운 항목 로드 (Firebase)
     
     // 환율 정보 자동 로드
     await fetchExchangeRates();
@@ -854,9 +854,36 @@ function updateExchangeRateInput() {
 // ========================================
 
 // 커스텀 드롭다운 항목 로드
-function loadCustomDropdownItems() {
+async function loadCustomDropdownItems() {
+    let customBrands = [];
+    let customSites = [];
+    
+    // Firebase에서 커스텀 아이템 로드
+    if (isFirebaseEnabled) {
+        try {
+            const brandsDoc = await db.collection('customDropdowns').doc('brands').get();
+            const sitesDoc = await db.collection('customDropdowns').doc('sites').get();
+            
+            if (brandsDoc.exists) {
+                customBrands = brandsDoc.data().list || [];
+            }
+            if (sitesDoc.exists) {
+                customSites = sitesDoc.data().list || [];
+            }
+            
+            console.log('✅ Firebase에서 커스텀 드롭다운 로드 완료:', { customBrands, customSites });
+        } catch (error) {
+            console.error('❌ Firebase 로드 실패, 로컬스토리지 사용:', error);
+            customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+            customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+        }
+    } else {
+        // Firebase 비활성화 시 로컬스토리지 사용
+        customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+        customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    }
+    
     // 브랜드 로드
-    const customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
     const brandSelect = document.getElementById('brand');
     const customOption = brandSelect.querySelector('option[value="custom"]');
     
@@ -879,7 +906,6 @@ function loadCustomDropdownItems() {
     });
 
     // 구매사이트 로드
-    const customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
     const siteSelect = document.getElementById('purchaseSite');
     const otherOption = siteSelect.querySelector('option[value="other"]');
     
@@ -980,8 +1006,23 @@ function loadCustomDropdownItems() {
 }
 
 // 커스텀 브랜드 추가
-function addCustomBrand(brandName) {
-    const customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+async function addCustomBrand(brandName) {
+    let customBrands = [];
+    
+    // Firebase에서 현재 목록 가져오기
+    if (isFirebaseEnabled) {
+        try {
+            const brandsDoc = await db.collection('customDropdowns').doc('brands').get();
+            if (brandsDoc.exists) {
+                customBrands = brandsDoc.data().list || [];
+            }
+        } catch (error) {
+            console.error('❌ Firebase 로드 실패, 로컬스토리지 사용:', error);
+            customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+        }
+    } else {
+        customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    }
     
     // 중복 체크
     if (customBrands.includes(brandName)) {
@@ -990,7 +1031,22 @@ function addCustomBrand(brandName) {
     }
 
     customBrands.push(brandName);
-    localStorage.setItem('customBrands', JSON.stringify(customBrands));
+    
+    // Firebase에 저장
+    if (isFirebaseEnabled) {
+        try {
+            await db.collection('customDropdowns').doc('brands').set({
+                list: customBrands,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Firebase에 브랜드 저장 완료');
+        } catch (error) {
+            console.error('❌ Firebase 저장 실패, 로컬스토리지에 저장:', error);
+            localStorage.setItem('customBrands', JSON.stringify(customBrands));
+        }
+    } else {
+        localStorage.setItem('customBrands', JSON.stringify(customBrands));
+    }
 
     // 폼 드롭다운에 추가 (직접 입력 앞에)
     const brandSelect = document.getElementById('brand');
@@ -1013,8 +1069,23 @@ function addCustomBrand(brandName) {
 }
 
 // 커스텀 구매사이트 추가
-function addCustomSite(siteName) {
-    const customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+async function addCustomSite(siteName) {
+    let customSites = [];
+    
+    // Firebase에서 현재 목록 가져오기
+    if (isFirebaseEnabled) {
+        try {
+            const sitesDoc = await db.collection('customDropdowns').doc('sites').get();
+            if (sitesDoc.exists) {
+                customSites = sitesDoc.data().list || [];
+            }
+        } catch (error) {
+            console.error('❌ Firebase 로드 실패, 로컬스토리지 사용:', error);
+            customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+        }
+    } else {
+        customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    }
     
     // 중복 체크
     if (customSites.includes(siteName)) {
@@ -1023,7 +1094,22 @@ function addCustomSite(siteName) {
     }
 
     customSites.push(siteName);
-    localStorage.setItem('customSites', JSON.stringify(customSites));
+    
+    // Firebase에 저장
+    if (isFirebaseEnabled) {
+        try {
+            await db.collection('customDropdowns').doc('sites').set({
+                list: customSites,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Firebase에 구매사이트 저장 완료');
+        } catch (error) {
+            console.error('❌ Firebase 저장 실패, 로컬스토리지에 저장:', error);
+            localStorage.setItem('customSites', JSON.stringify(customSites));
+        }
+    } else {
+        localStorage.setItem('customSites', JSON.stringify(customSites));
+    }
 
     // 폼 드롭다운에 추가 (기타 앞에)
     const siteSelect = document.getElementById('purchaseSite');
@@ -1052,15 +1138,46 @@ function addCustomSite(siteName) {
 }
 
 // 커스텀 브랜드 삭제
-function removeCustomBrand(brandName) {
+async function removeCustomBrand(brandName) {
     if (!confirm(`"${brandName}" 브랜드를 삭제하시겠습니까?`)) {
         return;
     }
 
-    // 로컬스토리지에서 제거
-    let customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    let customBrands = [];
+    
+    // Firebase에서 현재 목록 가져오기
+    if (isFirebaseEnabled) {
+        try {
+            const brandsDoc = await db.collection('customDropdowns').doc('brands').get();
+            if (brandsDoc.exists) {
+                customBrands = brandsDoc.data().list || [];
+            }
+        } catch (error) {
+            console.error('❌ Firebase 로드 실패, 로컬스토리지 사용:', error);
+            customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+        }
+    } else {
+        customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    }
+    
+    // 목록에서 제거
     customBrands = customBrands.filter(brand => brand !== brandName);
-    localStorage.setItem('customBrands', JSON.stringify(customBrands));
+    
+    // Firebase에 저장
+    if (isFirebaseEnabled) {
+        try {
+            await db.collection('customDropdowns').doc('brands').set({
+                list: customBrands,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Firebase에서 브랜드 삭제 완료');
+        } catch (error) {
+            console.error('❌ Firebase 삭제 실패, 로컬스토리지에 저장:', error);
+            localStorage.setItem('customBrands', JSON.stringify(customBrands));
+        }
+    } else {
+        localStorage.setItem('customBrands', JSON.stringify(customBrands));
+    }
 
     // 폼 드롭다운에서 제거
     const brandSelect = document.getElementById('brand');
@@ -1083,15 +1200,46 @@ function removeCustomBrand(brandName) {
 }
 
 // 커스텀 구매사이트 삭제
-function removeCustomSite(siteName) {
+async function removeCustomSite(siteName) {
     if (!confirm(`"${siteName}" 구매사이트를 삭제하시겠습니까?`)) {
         return;
     }
 
-    // 로컬스토리지에서 제거
-    let customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    let customSites = [];
+    
+    // Firebase에서 현재 목록 가져오기
+    if (isFirebaseEnabled) {
+        try {
+            const sitesDoc = await db.collection('customDropdowns').doc('sites').get();
+            if (sitesDoc.exists) {
+                customSites = sitesDoc.data().list || [];
+            }
+        } catch (error) {
+            console.error('❌ Firebase 로드 실패, 로컬스토리지 사용:', error);
+            customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+        }
+    } else {
+        customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    }
+    
+    // 목록에서 제거
     customSites = customSites.filter(site => site !== siteName);
-    localStorage.setItem('customSites', JSON.stringify(customSites));
+    
+    // Firebase에 저장
+    if (isFirebaseEnabled) {
+        try {
+            await db.collection('customDropdowns').doc('sites').set({
+                list: customSites,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            console.log('✅ Firebase에서 구매사이트 삭제 완료');
+        } catch (error) {
+            console.error('❌ Firebase 삭제 실패, 로컬스토리지에 저장:', error);
+            localStorage.setItem('customSites', JSON.stringify(customSites));
+        }
+    } else {
+        localStorage.setItem('customSites', JSON.stringify(customSites));
+    }
 
     // 폼 드롭다운에서 제거
     const siteSelect = document.getElementById('purchaseSite');
