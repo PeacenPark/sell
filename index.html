@@ -25,11 +25,13 @@
         <div id="statisticsTab" class="tab-content active">
             <div class="filter-section">
                 <label>기간 선택:</label>
-                <select id="periodFilter">
+                <select id="statisticsPeriodFilter">
                     <option value="all">전체 기간</option>
                     <option value="today">오늘</option>
                     <option value="week">이번 주</option>
                     <option value="month">이번 달</option>
+                    <option value="quarter">최근 3개월</option>
+                    <option value="halfYear">최근 6개월</option>
                     <option value="year">올해</option>
                     <option value="custom">직접 입력</option>
                 </select>
@@ -104,22 +106,22 @@
                 <div class="filter-grid">
                     <div class="filter-group">
                         <label for="filterBuyerName">구매자 이름</label>
-                        <input type="text" id="filterBuyerName" placeholder="이름 검색">
+                        <input type="text" id="filterBuyerName" placeholder="이름 검색" autocomplete="off">
                     </div>
                     <div class="filter-group">
                         <label for="filterBrand">브랜드</label>
-                        <input type="text" id="filterBrand" list="brandList" placeholder="브랜드 선택 또는 검색">
+                        <input type="text" id="filterBrand" list="brandList" placeholder="브랜드 선택 또는 검색" autocomplete="off">
                         <datalist id="brandList">
                             <option value="">전체</option>
                         </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filterProduct">품명</label>
-                        <input type="text" id="filterProduct" placeholder="품명 검색">
+                        <input type="text" id="filterProduct" placeholder="품명 검색" autocomplete="off">
                     </div>
                     <div class="filter-group">
                         <label for="filterPurchaseSite">구매사이트</label>
-                        <input type="text" id="filterPurchaseSite" list="siteList" placeholder="구매사이트 선택 또는 검색">
+                        <input type="text" id="filterPurchaseSite" list="siteList" placeholder="구매사이트 선택 또는 검색" autocomplete="off">
                         <datalist id="siteList">
                             <option value="">전체</option>
                             <option value="other">기타</option>
@@ -127,7 +129,7 @@
                     </div>
                     <div class="filter-group">
                         <label for="filterPlatform">판매 플랫폼</label>
-                        <select id="filterPlatform">
+                        <select id="filterPlatform" autocomplete="off">
                             <option value="">전체</option>
                             <option value="coupang">쿠팡</option>
                             <option value="naver">네이버 쇼핑</option>
@@ -140,7 +142,7 @@
                     </div>
                     <div class="filter-group">
                         <label for="filterCurrency">통화</label>
-                        <select id="filterCurrency">
+                        <select id="filterCurrency" autocomplete="off">
                             <option value="">전체</option>
                             <option value="KRW">KRW</option>
                             <option value="USD">USD</option>
@@ -148,6 +150,12 @@
                             <option value="GBP">GBP</option>
                             <option value="JPY">JPY</option>
                             <option value="CNY">CNY</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterYear">구매 연도</label>
+                        <select id="filterYear" autocomplete="off">
+                            <option value="">전체</option>
                         </select>
                     </div>
                 </div>
