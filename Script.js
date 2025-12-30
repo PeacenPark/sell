@@ -47,6 +47,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Firebase 또는 로컬스토리지에서 데이터 로드 (완료될 때까지 대기)
     await loadTransactions();
     
+    // 거래내역 필터 초기화 (브라우저 캐시 방지)
+    document.getElementById('filterBuyerName').value = '';
+    document.getElementById('filterBrand').value = '';
+    document.getElementById('filterProduct').value = '';
+    document.getElementById('filterPurchaseSite').value = '';
+    document.getElementById('filterPlatform').value = '';
+    document.getElementById('filterCurrency').value = '';
+    document.getElementById('filterYear').value = '';
+    
     // 데이터 로드 후 화면 업데이트
     updateStatistics();
     displayTransactions();
@@ -628,6 +637,9 @@ function editTransaction(id) {
 function displayTransactions() {
     const listContainer = document.getElementById('transactionsList');
     const filteredTransactions = getFilteredTransactions();
+    
+    // 연도 필터 드롭다운 업데이트
+    populateYearFilter();
 
     // 필터 결과 카운트 업데이트
     const filterCountElement = document.getElementById('filterResultCount');
@@ -714,7 +726,7 @@ function displayTransactions() {
 
 // 통계 업데이트
 function updateStatistics() {
-    const filteredTransactions = getFilteredTransactions();
+    const filteredTransactions = getStatisticsFilteredTransactions();
     
     if (filteredTransactions.length === 0) {
         document.getElementById('totalRevenue').textContent = '0원';
@@ -742,7 +754,7 @@ function updateStatistics() {
 
 // 필터 초기화
 function initializeFilters() {
-    const periodFilter = document.getElementById('periodFilter');
+    const periodFilter = document.getElementById('statisticsPeriodFilter');
     const customDateRange = document.getElementById('customDateRange');
     const applyCustomDate = document.getElementById('applyCustomDate');
 
@@ -752,13 +764,11 @@ function initializeFilters() {
         } else {
             customDateRange.style.display = 'none';
             updateStatistics();
-            displayTransactions();
         }
     });
 
     applyCustomDate.addEventListener('click', function() {
         updateStatistics();
-        displayTransactions();
     });
 }
 
@@ -1655,8 +1665,7 @@ async function removeCustomSite(siteName) {
 
 // 필터링된 거래 가져오기
 function getFilteredTransactions() {
-    const periodFilter = document.getElementById('periodFilter').value;
-    const now = new Date();
+    // 거래내역 탭의 상세 필터만 적용 (기간 필터 제외)
     
     // 추가 필터 값 가져오기
     const filterBuyerName = document.getElementById('filterBuyerName')?.value.toLowerCase().trim() || '';
@@ -1665,11 +1674,40 @@ function getFilteredTransactions() {
     const filterPurchaseSite = document.getElementById('filterPurchaseSite')?.value.trim() || '';
     const filterPlatform = document.getElementById('filterPlatform')?.value || '';
     const filterCurrency = document.getElementById('filterCurrency')?.value || '';
+    const filterYear = document.getElementById('filterYear')?.value || '';
     
     return transactions.filter(t => {
         const transactionDate = new Date(t.purchaseDate);
         
-        // 기간 필터
+        // 상세 필터만 적용 - 브랜드와 구매사이트는 검색 가능 (부분 일치)
+        const buyerNameMatch = !filterBuyerName || t.buyerName.toLowerCase().includes(filterBuyerName);
+        const brandMatch = !filterBrand || t.brand.toLowerCase().includes(filterBrand);
+        const productMatch = !filterProduct || t.productName.toLowerCase().includes(filterProduct);
+        // 구매사이트는 정확히 일치하거나 사용자가 직접 입력한 값으로 검색
+        const purchaseSiteMatch = !filterPurchaseSite || 
+            t.purchaseSite === filterPurchaseSite || 
+            (t.purchaseSite === 'other' && t.purchaseSiteCustom && t.purchaseSiteCustom.toLowerCase().includes(filterPurchaseSite.toLowerCase()));
+        const platformMatch = !filterPlatform || t.platform === filterPlatform;
+        const currencyMatch = !filterCurrency || t.currency === filterCurrency;
+        const yearMatch = !filterYear || transactionDate.getFullYear().toString() === filterYear;
+        
+        return buyerNameMatch && brandMatch && productMatch && 
+               purchaseSiteMatch && platformMatch && currencyMatch && yearMatch;
+    }).sort((a, b) => {
+        // 구매일자 기준 내림차순 정렬 (최신이 먼저)
+        return new Date(b.purchaseDate) - new Date(a.purchaseDate);
+    });
+}
+
+// 통계 전용 필터링 (기간 필터만 적용, 거래내역 필터는 무시)
+function getStatisticsFilteredTransactions() {
+    const periodFilter = document.getElementById('statisticsPeriodFilter').value;
+    const now = new Date();
+    
+    return transactions.filter(t => {
+        const transactionDate = new Date(t.purchaseDate);
+        
+        // 기간 필터만 적용
         let periodMatch = true;
         switch(periodFilter) {
             case 'today':
@@ -1683,6 +1721,16 @@ function getFilteredTransactions() {
             case 'month':
                 periodMatch = transactionDate.getMonth() === now.getMonth() && 
                        transactionDate.getFullYear() === now.getFullYear();
+                break;
+            case 'quarter':
+                const threeMonthsAgo = new Date(now);
+                threeMonthsAgo.setMonth(now.getMonth() - 3);
+                periodMatch = transactionDate >= threeMonthsAgo;
+                break;
+            case 'halfYear':
+                const sixMonthsAgo = new Date(now);
+                sixMonthsAgo.setMonth(now.getMonth() - 6);
+                periodMatch = transactionDate >= sixMonthsAgo;
                 break;
             case 'year':
                 periodMatch = transactionDate.getFullYear() === now.getFullYear();
@@ -1701,22 +1749,7 @@ function getFilteredTransactions() {
                 periodMatch = true;
         }
         
-        // 추가 필터 적용 - 브랜드와 구매사이트는 검색 가능 (부분 일치)
-        const buyerNameMatch = !filterBuyerName || t.buyerName.toLowerCase().includes(filterBuyerName);
-        const brandMatch = !filterBrand || t.brand.toLowerCase().includes(filterBrand);
-        const productMatch = !filterProduct || t.productName.toLowerCase().includes(filterProduct);
-        // 구매사이트는 정확히 일치하거나 사용자가 직접 입력한 값으로 검색
-        const purchaseSiteMatch = !filterPurchaseSite || 
-            t.purchaseSite === filterPurchaseSite || 
-            (t.purchaseSite === 'other' && t.purchaseSiteCustom && t.purchaseSiteCustom.toLowerCase().includes(filterPurchaseSite.toLowerCase()));
-        const platformMatch = !filterPlatform || t.platform === filterPlatform;
-        const currencyMatch = !filterCurrency || t.currency === filterCurrency;
-        
-        return periodMatch && buyerNameMatch && brandMatch && productMatch && 
-               purchaseSiteMatch && platformMatch && currencyMatch;
-    }).sort((a, b) => {
-        // 구매일자 기준 내림차순 정렬 (최신이 먼저)
-        return new Date(b.purchaseDate) - new Date(a.purchaseDate);
+        return periodMatch;
     });
 }
 
@@ -1728,13 +1761,13 @@ function initializeButtons() {
     
     // 필터 입력 필드에 이벤트 리스너 추가
     const filterInputs = ['filterBuyerName', 'filterBrand', 'filterProduct', 
-                         'filterPurchaseSite', 'filterPlatform', 'filterCurrency'];
+                         'filterPurchaseSite', 'filterPlatform', 'filterCurrency', 'filterYear'];
     
     filterInputs.forEach(id => {
         const element = document.getElementById(id);
         if (element) {
-            element.addEventListener('input', applyFilters);
-            element.addEventListener('change', applyFilters);
+            element.addEventListener('input', applyTransactionFilters);
+            element.addEventListener('change', applyTransactionFilters);
         }
     });
 }
@@ -1784,8 +1817,51 @@ function exportToExcel() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    const periodFilter = document.getElementById('periodFilter').value;
-    const filename = `해외직구거래내역_${periodFilter}_${new Date().toISOString().split('T')[0]}.csv`;
+    
+    // 추가 필터 정보 수집 (기간 필터 제외)
+    const filterParts = [];
+    const today = new Date().toISOString().split('T')[0];
+    
+    const filterBuyerName = document.getElementById('filterBuyerName')?.value.trim();
+    if (filterBuyerName) {
+        filterParts.push(filterBuyerName);
+    }
+    
+    const filterBrand = document.getElementById('filterBrand')?.value.trim();
+    if (filterBrand) {
+        filterParts.push(filterBrand);
+    }
+    
+    const filterProduct = document.getElementById('filterProduct')?.value.trim();
+    if (filterProduct) {
+        filterParts.push(filterProduct);
+    }
+    
+    const filterPurchaseSite = document.getElementById('filterPurchaseSite')?.value.trim();
+    if (filterPurchaseSite) {
+        const siteName = getPurchaseSiteName(filterPurchaseSite, '');
+        filterParts.push(siteName);
+    }
+    
+    const filterPlatform = document.getElementById('filterPlatform')?.value;
+    if (filterPlatform) {
+        const platformName = getPlatformName(filterPlatform);
+        filterParts.push(platformName);
+    }
+    
+    const filterCurrency = document.getElementById('filterCurrency')?.value;
+    if (filterCurrency) {
+        filterParts.push(filterCurrency);
+    }
+    
+    const filterYear = document.getElementById('filterYear')?.value;
+    if (filterYear) {
+        filterParts.push(`${filterYear}년`);
+    }
+    
+    // 필터가 없으면 "전체"로 표시
+    const filterString = filterParts.length > 0 ? filterParts.join('_') : '전체';
+    const filename = `해외직구거래내역_${filterString}_${today}.csv`;
     
     link.setAttribute('href', url);
     link.setAttribute('download', filename);
@@ -1873,9 +1949,8 @@ function getPurchaseSiteName(site, customName) {
     return names[site] || site;
 }
 
-// 필터 적용
-function applyFilters() {
-    updateStatistics();
+// 거래내역 필터 적용 (통계 제외)
+function applyTransactionFilters() {
     displayTransactions();
 }
 
@@ -1887,8 +1962,42 @@ function resetFilters() {
     document.getElementById('filterPurchaseSite').value = '';
     document.getElementById('filterPlatform').value = '';
     document.getElementById('filterCurrency').value = '';
+    document.getElementById('filterYear').value = '';
     
-    applyFilters();
+    applyTransactionFilters();
+}
+
+// 연도 필터 드롭다운 채우기
+function populateYearFilter() {
+    const yearSelect = document.getElementById('filterYear');
+    if (!yearSelect) return;
+    
+    // 거래 데이터에서 연도 추출
+    const years = new Set();
+    transactions.forEach(t => {
+        const year = new Date(t.purchaseDate).getFullYear();
+        years.add(year);
+    });
+    
+    // 정렬 (최신 연도가 먼저)
+    const sortedYears = Array.from(years).sort((a, b) => b - a);
+    
+    // 현재 선택된 값 저장
+    const currentValue = yearSelect.value;
+    
+    // 드롭다운 업데이트
+    yearSelect.innerHTML = '<option value="">전체</option>';
+    sortedYears.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = `${year}년`;
+        yearSelect.appendChild(option);
+    });
+    
+    // 이전 선택 값 복원
+    if (currentValue && sortedYears.includes(parseInt(currentValue))) {
+        yearSelect.value = currentValue;
+    }
 }
 
 // ========================================
@@ -1917,7 +2026,7 @@ function updateMonthlyChart(transactions) {
     const ctx = document.getElementById('monthlyChart');
     if (!ctx) return;
 
-    const periodFilter = document.getElementById('periodFilter').value;
+    const periodFilter = document.getElementById('statisticsPeriodFilter').value;
     
     // 기간에 따라 적절한 집계 단위 결정
     let groupBy = 'month'; // 기본값: 월별
