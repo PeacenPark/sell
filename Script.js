@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializeForm();
     initializeFilters();
     initializeButtons();
+    initializeMarginCalculator();
     await loadCustomDropdownItems(); // 커스텀 드롭다운 항목 로드 (Firebase)
     
     // 환율 정보 자동 로드
@@ -215,7 +216,7 @@ function initializeModal() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('purchaseDate').value = today;
         document.getElementById('quantity').value = 1;
-        document.getElementById('platformFee').value = 0;
+        document.getElementById('platformFee').value = 10.0;
         document.getElementById('purchaseSiteCustom').disabled = true;
         
         // 계산 결과 초기화
@@ -344,7 +345,8 @@ function initializeForm() {
     });
 
     // 실시간 계산을 위한 이벤트 리스너
-    const calcInputs = ['purchasePrice', 'currency', 'exchangeRate', 'salePrice', 
+    const calcInputs = ['purchasePrice', 'internationalShipping', 'currency', 'shippingCurrency', 
+                       'exchangeRate', 'shippingExchangeRate', 'salePrice', 
                        'platformFee', 'customsDuty', 'shippingFee', 'quantity'];
     
     calcInputs.forEach(id => {
@@ -359,11 +361,21 @@ function initializeForm() {
     if (currencySelect) {
         currencySelect.addEventListener('change', updateExchangeRateInput);
     }
+    
+    const shippingCurrencySelect = document.getElementById('shippingCurrency');
+    if (shippingCurrencySelect) {
+        shippingCurrencySelect.addEventListener('change', updateShippingExchangeRateInput);
+    }
 
     // 환율 업데이트 버튼
     const updateExchangeRateBtn = document.getElementById('updateExchangeRateBtn');
     if (updateExchangeRateBtn) {
         updateExchangeRateBtn.addEventListener('click', fetchExchangeRates);
+    }
+    
+    const updateShippingExchangeRateBtn = document.getElementById('updateShippingExchangeRateBtn');
+    if (updateShippingExchangeRateBtn) {
+        updateShippingExchangeRateBtn.addEventListener('click', fetchShippingExchangeRates);
     }
 
     // 폼 제출
@@ -376,7 +388,9 @@ function initializeForm() {
 // 실시간 계산
 function calculateRealtime() {
     const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
+    const internationalShipping = parseFloat(document.getElementById('internationalShipping').value) || 0;
     const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 0;
+    const shippingExchangeRate = parseFloat(document.getElementById('shippingExchangeRate').value) || 0;
     const salePrice = parseFloat(document.getElementById('salePrice').value) || 0;
     const platformFee = parseFloat(document.getElementById('platformFee').value) || 0;
     const customsDuty = parseFloat(document.getElementById('customsDuty').value) || 0;
@@ -386,11 +400,14 @@ function calculateRealtime() {
     // 구매가격 (원화 환산)
     const purchasePriceKRW = purchasePrice * exchangeRate * quantity;
     
+    // 해외배송비 (원화 환산)
+    const shippingKRW = internationalShipping * shippingExchangeRate * quantity;
+    
     // 플랫폼 수수료
     const platformFeeAmount = salePrice * (platformFee / 100);
     
-    // 총 비용
-    const totalCost = purchasePriceKRW + platformFeeAmount + customsDuty + shippingFee;
+    // 총 비용 (구매가격 + 해외배송비 + 플랫폼수수료 + 관부과세 + 국내배송비)
+    const totalCost = purchasePriceKRW + shippingKRW + platformFeeAmount + customsDuty + shippingFee;
     
     // 순이익
     const profit = salePrice - totalCost;
@@ -428,8 +445,11 @@ async function addTransaction() {
         purchaseSite: document.getElementById('purchaseSite').value,
         purchaseSiteCustom: document.getElementById('purchaseSiteCustom').value,
         purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
+        internationalShipping: parseFloat(document.getElementById('internationalShipping').value) || 0,
         currency: document.getElementById('currency').value,
+        shippingCurrency: document.getElementById('shippingCurrency').value,
         exchangeRate: parseFloat(document.getElementById('exchangeRate').value),
+        shippingExchangeRate: parseFloat(document.getElementById('shippingExchangeRate').value) || 0,
         salePrice: parseFloat(document.getElementById('salePrice').value),
         platform: document.getElementById('platform').value,
         platformFee: parseFloat(document.getElementById('platformFee').value),
@@ -439,8 +459,9 @@ async function addTransaction() {
 
     // 계산된 값 추가
     transaction.purchasePriceKRW = transaction.purchasePrice * transaction.exchangeRate * transaction.quantity;
+    transaction.shippingKRW = transaction.internationalShipping * transaction.shippingExchangeRate * transaction.quantity;
     transaction.platformFeeAmount = transaction.salePrice * (transaction.platformFee / 100);
-    transaction.totalCost = transaction.purchasePriceKRW + transaction.platformFeeAmount + transaction.customsDuty + transaction.shippingFee;
+    transaction.totalCost = transaction.purchasePriceKRW + transaction.shippingKRW + transaction.platformFeeAmount + transaction.customsDuty + transaction.shippingFee;
     transaction.profit = transaction.salePrice - transaction.totalCost;
     transaction.margin = transaction.salePrice > 0 ? (transaction.profit / transaction.salePrice * 100) : 0;
 
@@ -497,7 +518,7 @@ async function addTransaction() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('purchaseDate').value = today;
     document.getElementById('quantity').value = 1;
-    document.getElementById('platformFee').value = 0;
+    document.getElementById('platformFee').value = 10.0;
     document.getElementById('purchaseSiteCustom').disabled = true;
     
     // 계산 결과 초기화
@@ -572,8 +593,11 @@ function editTransaction(id) {
     document.getElementById('purchaseSite').value = transaction.purchaseSite;
     document.getElementById('purchaseSiteCustom').value = transaction.purchaseSiteCustom || '';
     document.getElementById('purchasePrice').value = transaction.purchasePrice;
+    document.getElementById('internationalShipping').value = transaction.internationalShipping || 0;
     document.getElementById('currency').value = transaction.currency;
+    document.getElementById('shippingCurrency').value = transaction.shippingCurrency || transaction.currency;
     document.getElementById('exchangeRate').value = transaction.exchangeRate;
+    document.getElementById('shippingExchangeRate').value = transaction.shippingExchangeRate || transaction.exchangeRate;
     document.getElementById('salePrice').value = transaction.salePrice;
     document.getElementById('platform').value = transaction.platform;
     document.getElementById('platformFee').value = transaction.platformFee;
@@ -637,13 +661,15 @@ function displayTransactions() {
                     <span class="detail-value">${getPurchaseSiteName(t.purchaseSite, t.purchaseSiteCustom)}</span>
                 </div>
                 <div class="detail-item">
-                    <span class="detail-label">구매가격(배송비포함)</span>
-                    <span class="detail-value">${t.purchasePrice.toFixed(2)} ${t.currency}</span>
+                    <span class="detail-label">구매가격</span>
+                    <span class="detail-value">${t.purchasePrice.toFixed(2)} ${t.currency} (환율: ${formatCurrency(t.exchangeRate)})</span>
                 </div>
+                ${t.internationalShipping > 0 ? `
                 <div class="detail-item">
-                    <span class="detail-label">환율</span>
-                    <span class="detail-value">${formatCurrency(t.exchangeRate)}</span>
+                    <span class="detail-label">해외배송비</span>
+                    <span class="detail-value">${t.internationalShipping.toFixed(2)} ${t.shippingCurrency || t.currency}${t.shippingExchangeRate ? ` (환율: ${formatCurrency(t.shippingExchangeRate)})` : ''}</span>
                 </div>
+                ` : ''}
                 <div class="detail-item">
                     <span class="detail-label">판매가격</span>
                     <span class="detail-value">${formatCurrency(t.salePrice)}</span>
@@ -847,6 +873,372 @@ function updateExchangeRateInput() {
         // 실시간 계산 트리거
         calculateRealtime();
     }
+}
+
+// 배송비 환율 자동 입력
+function updateShippingExchangeRateInput() {
+    const currencySelect = document.getElementById('shippingCurrency');
+    const exchangeRateInput = document.getElementById('shippingExchangeRate');
+    const exchangeRateHint = document.getElementById('shippingExchangeRateHint');
+    
+    if (!currencySelect || !exchangeRateInput) return;
+    
+    const selectedCurrency = currencySelect.value;
+    
+    // KRW 선택 시 환율 1.0 고정
+    if (selectedCurrency === 'KRW') {
+        exchangeRateInput.value = 1.0;
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '원화는 환율 1.0 고정 | <span id="shippingExchangeRateUpdate">-</span>';
+        }
+        calculateRealtime();
+        return;
+    }
+    
+    // 다른 통화 선택 시 자동 환율 입력
+    if (selectedCurrency && exchangeRates[selectedCurrency]) {
+        exchangeRateInput.value = exchangeRates[selectedCurrency];
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '1 외화당 원화 환율 | <span id="shippingExchangeRateUpdate">' + 
+                (document.getElementById('shippingExchangeRateUpdate') ? document.getElementById('shippingExchangeRateUpdate').textContent : '-') + 
+                '</span>';
+        }
+        
+        // 실시간 계산 트리거
+        calculateRealtime();
+    }
+}
+
+// 배송비 환율 가져오기
+async function fetchShippingExchangeRates() {
+    await fetchExchangeRates();
+    updateShippingExchangeRateInput();
+}
+
+// ========================================
+// 마진율 계산기
+// ========================================
+
+// 마진율 계산기 모달 열기
+async function openMarginCalculator() {
+    const modal = document.getElementById('marginCalculatorModal');
+    
+    // 폼 초기화
+    document.getElementById('calcPurchasePrice').value = '';
+    document.getElementById('calcInternationalShipping').value = '0';
+    document.getElementById('calcCurrency').value = 'USD';
+    document.getElementById('calcShippingCurrency').value = 'KRW';
+    document.getElementById('calcExchangeRate').value = '';
+    document.getElementById('calcShippingExchangeRate').value = '1.0';
+    document.getElementById('calcSalePrice').value = '';
+    document.getElementById('calcPlatform').value = 'coupang';
+    document.getElementById('calcPlatformFee').value = '10.0';
+    document.getElementById('calcCustomsDuty').value = '0';
+    document.getElementById('calcShippingFee').value = '5000';
+    
+    // 계산 결과 초기화
+    document.getElementById('calcResultTotalCost').textContent = '0원';
+    document.getElementById('calcResultProfit').textContent = '0원';
+    document.getElementById('calcResultProfit').className = 'profit';
+    document.getElementById('calcResultMargin').textContent = '0%';
+    
+    // 최신 환율 자동 가져오기 및 USD 환율 자동 입력
+    await fetchExchangeRatesForCalculator();
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+// 마진율 계산기용 환율 정보 가져오기
+async function fetchExchangeRatesForCalculator() {
+    try {
+        const updateBtn = document.getElementById('calcUpdateExchangeRateBtn');
+        const updateText = document.getElementById('calcExchangeRateUpdate');
+        
+        if (updateBtn) updateBtn.disabled = true;
+        if (updateText) updateText.textContent = '업데이트 중...';
+        
+        // ExchangeRate-API 사용 (무료, API 키 불필요)
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/KRW');
+        
+        if (!response.ok) {
+            throw new Error('환율 정보를 가져올 수 없습니다.');
+        }
+        
+        const data = await response.json();
+        
+        // 환율 데이터 저장 (KRW 기준이므로 역수 계산)
+        const calcExchangeRates = {
+            KRW: 1.0,
+            USD: data.rates.USD ? (1 / data.rates.USD).toFixed(2) : 0,
+            EUR: data.rates.EUR ? (1 / data.rates.EUR).toFixed(2) : 0,
+            GBP: data.rates.GBP ? (1 / data.rates.GBP).toFixed(2) : 0,
+            JPY: data.rates.JPY ? (1 / data.rates.JPY).toFixed(2) : 0,
+            CNY: data.rates.CNY ? (1 / data.rates.CNY).toFixed(2) : 0
+        };
+        
+        // 마지막 업데이트 시간 표시
+        if (updateText) {
+            const now = new Date();
+            const timeStr = now.toLocaleString('ko-KR', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            updateText.textContent = `최종 업데이트: ${timeStr}`;
+        }
+        
+        // 현재 선택된 통화의 환율 자동 입력
+        const currencySelect = document.getElementById('calcCurrency');
+        const exchangeRateInput = document.getElementById('calcExchangeRate');
+        const selectedCurrency = currencySelect.value;
+        
+        if (selectedCurrency && calcExchangeRates[selectedCurrency]) {
+            exchangeRateInput.value = calcExchangeRates[selectedCurrency];
+            calculateMargin();
+        }
+        
+        console.log('✅ 계산기 환율 정보 업데이트 완료:', calcExchangeRates);
+        
+    } catch (error) {
+        console.error('❌ 계산기 환율 정보 가져오기 실패:', error);
+        
+        // 실패 시 기본값 설정
+        const currencySelect = document.getElementById('calcCurrency');
+        const exchangeRateInput = document.getElementById('calcExchangeRate');
+        if (currencySelect.value === 'USD' && !exchangeRateInput.value) {
+            exchangeRateInput.value = 1300.0;
+        }
+        
+        const updateText = document.getElementById('calcExchangeRateUpdate');
+        if (updateText) {
+            updateText.textContent = '업데이트 실패 (수동 입력 가능)';
+        }
+    } finally {
+        const updateBtn = document.getElementById('calcUpdateExchangeRateBtn');
+        if (updateBtn) updateBtn.disabled = false;
+    }
+}
+
+// 마진율 계산기 닫기
+function closeMarginCalculator() {
+    const modal = document.getElementById('marginCalculatorModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// 계산기 구매가격 환율 자동 입력
+function updateCalcExchangeRateInput() {
+    const currencySelect = document.getElementById('calcCurrency');
+    const exchangeRateInput = document.getElementById('calcExchangeRate');
+    const exchangeRateHint = document.getElementById('calcExchangeRateHint');
+    
+    if (!currencySelect || !exchangeRateInput) return;
+    
+    const selectedCurrency = currencySelect.value;
+    
+    // KRW 선택 시 환율 1.0 고정
+    if (selectedCurrency === 'KRW') {
+        exchangeRateInput.value = 1.0;
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '원화는 환율 1.0 고정 | <span id="calcExchangeRateUpdate">-</span>';
+        }
+        calculateMargin();
+        return;
+    }
+    
+    // 다른 통화 선택 시 자동 환율 입력
+    if (selectedCurrency && exchangeRates[selectedCurrency]) {
+        exchangeRateInput.value = exchangeRates[selectedCurrency];
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '1 외화당 원화 환율 | <span id="calcExchangeRateUpdate">' + 
+                (document.getElementById('calcExchangeRateUpdate') ? document.getElementById('calcExchangeRateUpdate').textContent : '-') + 
+                '</span>';
+        }
+        calculateMargin();
+    }
+}
+
+// 계산기 배송비 환율 자동 입력
+function updateCalcShippingExchangeRateInput() {
+    const currencySelect = document.getElementById('calcShippingCurrency');
+    const exchangeRateInput = document.getElementById('calcShippingExchangeRate');
+    const exchangeRateHint = document.getElementById('calcShippingExchangeRateHint');
+    
+    if (!currencySelect || !exchangeRateInput) return;
+    
+    const selectedCurrency = currencySelect.value;
+    
+    // KRW 선택 시 환율 1.0 고정
+    if (selectedCurrency === 'KRW') {
+        exchangeRateInput.value = 1.0;
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '원화는 환율 1.0 고정 | <span id="calcShippingExchangeRateUpdate">-</span>';
+        }
+        calculateMargin();
+        return;
+    }
+    
+    // 다른 통화 선택 시 자동 환율 입력
+    if (selectedCurrency && exchangeRates[selectedCurrency]) {
+        exchangeRateInput.value = exchangeRates[selectedCurrency];
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '1 외화당 원화 환율 | <span id="calcShippingExchangeRateUpdate">' + 
+                (document.getElementById('calcShippingExchangeRateUpdate') ? document.getElementById('calcShippingExchangeRateUpdate').textContent : '-') + 
+                '</span>';
+        }
+        calculateMargin();
+    }
+}
+
+// 계산기 배송비 환율 가져오기
+async function fetchShippingExchangeRatesForCalculator() {
+    await fetchExchangeRatesForCalculator();
+    updateCalcShippingExchangeRateInput();
+}
+
+// 마진율 계산
+function calculateMargin() {
+    const purchasePrice = parseFloat(document.getElementById('calcPurchasePrice').value) || 0;
+    const internationalShipping = parseFloat(document.getElementById('calcInternationalShipping').value) || 0;
+    const exchangeRate = parseFloat(document.getElementById('calcExchangeRate').value) || 0;
+    const shippingExchangeRate = parseFloat(document.getElementById('calcShippingExchangeRate').value) || 0;
+    const salePrice = parseFloat(document.getElementById('calcSalePrice').value) || 0;
+    const platformFee = parseFloat(document.getElementById('calcPlatformFee').value) || 0;
+    const customsDuty = parseFloat(document.getElementById('calcCustomsDuty').value) || 0;
+    const shippingFee = parseFloat(document.getElementById('calcShippingFee').value) || 0;
+
+    // 구매가격 (원화 환산)
+    const purchasePriceKRW = purchasePrice * exchangeRate;
+    
+    // 해외배송비 (원화 환산)
+    const shippingKRW = internationalShipping * shippingExchangeRate;
+    
+    // 플랫폼 수수료
+    const platformFeeAmount = salePrice * (platformFee / 100);
+    
+    // 총 비용 (구매가격 + 해외배송비 + 플랫폼수수료 + 관부과세 + 국내배송비)
+    const totalCost = purchasePriceKRW + shippingKRW + platformFeeAmount + customsDuty + shippingFee;
+    
+    // 순이익
+    const profit = salePrice - totalCost;
+    
+    // 마진률
+    const margin = salePrice > 0 ? (profit / salePrice) * 100 : 0;
+
+    // 결과 표시
+    document.getElementById('calcResultTotalCost').textContent = formatCurrency(totalCost);
+    document.getElementById('calcResultProfit').textContent = formatCurrency(profit);
+    document.getElementById('calcResultMargin').textContent = margin.toFixed(2) + '%';
+
+    // 이익/손실에 따른 색상 변경
+    const profitElement = document.getElementById('calcResultProfit');
+    if (profit >= 0) {
+        profitElement.className = 'profit';
+    } else {
+        profitElement.className = 'loss';
+    }
+}
+
+// 마진율 계산기 초기화
+function initializeMarginCalculator() {
+    // 닫기 버튼
+    const closeBtn = document.querySelector('.calc-close');
+    closeBtn.addEventListener('click', closeMarginCalculator);
+    
+    // 모달 외부 클릭 시 닫기
+    const modal = document.getElementById('marginCalculatorModal');
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeMarginCalculator();
+        }
+    });
+    
+    // ESC 키로 모달 닫기
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeMarginCalculator();
+        }
+    });
+    
+    // 통화 선택 시 환율 자동 입력
+    const currencySelect = document.getElementById('calcCurrency');
+    currencySelect.addEventListener('change', async function() {
+        await fetchExchangeRatesForCalculator();
+    });
+    
+    // 통화 변경 시 자동 환율 입력
+    const calcCurrencySelect = document.getElementById('calcCurrency');
+    if (calcCurrencySelect) {
+        calcCurrencySelect.addEventListener('change', updateCalcExchangeRateInput);
+    }
+    
+    const calcShippingCurrencySelect = document.getElementById('calcShippingCurrency');
+    if (calcShippingCurrencySelect) {
+        calcShippingCurrencySelect.addEventListener('change', updateCalcShippingExchangeRateInput);
+    }
+    
+    // 환율 업데이트 버튼
+    const updateExchangeRateBtn = document.getElementById('calcUpdateExchangeRateBtn');
+    updateExchangeRateBtn.addEventListener('click', fetchExchangeRatesForCalculator);
+    
+    const updateShippingExchangeRateBtn = document.getElementById('calcUpdateShippingExchangeRateBtn');
+    if (updateShippingExchangeRateBtn) {
+        updateShippingExchangeRateBtn.addEventListener('click', fetchShippingExchangeRatesForCalculator);
+    }
+    
+    // 플랫폼 선택 시 수수료율 자동 설정
+    const platformSelect = document.getElementById('calcPlatform');
+    const platformFeeInput = document.getElementById('calcPlatformFee');
+    
+    platformSelect.addEventListener('change', function() {
+        const fees = {
+            'coupang': 10.0,
+            'naver': 5.6,
+            'street11': 11.0,
+            'gmarket': 12.0,
+            'auction': 12.0,
+            'direct': 0,
+            'custom': 0
+        };
+        
+        platformFeeInput.value = fees[this.value] || 0;
+        calculateMargin();
+    });
+    
+    // 실시간 계산을 위한 이벤트 리스너
+    const calcInputs = ['calcPurchasePrice', 'calcInternationalShipping', 'calcCurrency', 'calcShippingCurrency',
+                       'calcExchangeRate', 'calcShippingExchangeRate', 'calcSalePrice', 
+                       'calcPlatformFee', 'calcCustomsDuty', 'calcShippingFee'];
+    
+    calcInputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', calculateMargin);
+        }
+    });
+    
+    // 초기화 버튼
+    const resetBtn = document.getElementById('resetCalculatorBtn');
+    resetBtn.addEventListener('click', function() {
+        document.getElementById('calcPurchasePrice').value = '';
+        document.getElementById('calcInternationalShipping').value = '0';
+        document.getElementById('calcCurrency').value = 'USD';
+        document.getElementById('calcShippingCurrency').value = 'KRW';
+        document.getElementById('calcExchangeRate').value = '';
+        document.getElementById('calcShippingExchangeRate').value = '1.0';
+        document.getElementById('calcSalePrice').value = '';
+        document.getElementById('calcPlatform').value = 'coupang';
+        document.getElementById('calcPlatformFee').value = '10.0';
+        document.getElementById('calcCustomsDuty').value = '0';
+        document.getElementById('calcShippingFee').value = '5000';
+        
+        document.getElementById('calcResultTotalCost').textContent = '0원';
+        document.getElementById('calcResultProfit').textContent = '0원';
+        document.getElementById('calcResultProfit').className = 'profit';
+        document.getElementById('calcResultMargin').textContent = '0%';
+    });
 }
 
 // ========================================
@@ -1329,6 +1721,7 @@ function getFilteredTransactions() {
 function initializeButtons() {
     document.getElementById('exportBtn').addEventListener('click', exportToExcel);
     document.getElementById('resetFiltersBtn').addEventListener('click', resetFilters);
+    document.getElementById('marginCalculatorBtn').addEventListener('click', openMarginCalculator);
     
     // 필터 입력 필드에 이벤트 리스너 추가
     const filterInputs = ['filterBuyerName', 'filterBrand', 'filterProduct', 
@@ -1353,7 +1746,7 @@ function exportToExcel() {
     }
 
     let csv = '\ufeff'; // UTF-8 BOM
-    csv += '구매일자,구매자명,연락처,배송지주소,브랜드,품명,수량,구매사이트,구매가격(배송비포함),통화,환율,구매가격(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
+    csv += '구매일자,구매자명,연락처,배송지주소,브랜드,품명,수량,구매사이트,구매가격,구매가격통화,구매가격환율,해외배송비,배송비통화,배송비환율,구매가격(원),해외배송비(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
     
     filteredTransactions.forEach(t => {
         csv += [
@@ -1368,7 +1761,11 @@ function exportToExcel() {
             t.purchasePrice.toFixed(2),
             t.currency,
             t.exchangeRate.toFixed(2),
+            (t.internationalShipping || 0).toFixed(2),
+            t.shippingCurrency || t.currency,
+            (t.shippingExchangeRate || 0).toFixed(2),
             t.purchasePriceKRW.toFixed(0),
+            (t.shippingKRW || 0).toFixed(0),
             t.salePrice.toFixed(0),
             getPlatformName(t.platform),
             t.platformFee.toFixed(1),
