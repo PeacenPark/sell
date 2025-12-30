@@ -757,6 +757,7 @@ async function fetchExchangeRates() {
         
         // 환율 데이터 저장 (KRW 기준이므로 역수 계산)
         exchangeRates = {
+            KRW: 1.0, // 원화는 환율 1.0
             USD: data.rates.USD ? (1 / data.rates.USD).toFixed(2) : 0,
             EUR: data.rates.EUR ? (1 / data.rates.EUR).toFixed(2) : 0,
             GBP: data.rates.GBP ? (1 / data.rates.GBP).toFixed(2) : 0,
@@ -785,6 +786,12 @@ async function fetchExchangeRates() {
         
     } catch (error) {
         console.error('❌ 환율 정보 가져오기 실패:', error);
+        
+        // 실패해도 KRW는 항상 1.0으로 설정
+        if (!exchangeRates.KRW) {
+            exchangeRates.KRW = 1.0;
+        }
+        
         const updateText = document.getElementById('exchangeRateUpdate');
         if (updateText) {
             updateText.textContent = '업데이트 실패 (수동 입력 가능)';
@@ -799,13 +806,30 @@ async function fetchExchangeRates() {
 function updateExchangeRateInput() {
     const currencySelect = document.getElementById('currency');
     const exchangeRateInput = document.getElementById('exchangeRate');
+    const exchangeRateHint = document.getElementById('exchangeRateHint');
     
     if (!currencySelect || !exchangeRateInput) return;
     
     const selectedCurrency = currencySelect.value;
     
+    // KRW 선택 시 환율 1.0 고정
+    if (selectedCurrency === 'KRW') {
+        exchangeRateInput.value = 1.0;
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '원화는 환율 1.0 고정 | <span id="exchangeRateUpdate">-</span>';
+        }
+        calculateRealtime();
+        return;
+    }
+    
+    // 다른 통화 선택 시 자동 환율 입력
     if (selectedCurrency && exchangeRates[selectedCurrency]) {
         exchangeRateInput.value = exchangeRates[selectedCurrency];
+        if (exchangeRateHint) {
+            exchangeRateHint.innerHTML = '1 외화당 원화 환율 | <span id="exchangeRateUpdate">' + 
+                (document.getElementById('exchangeRateUpdate') ? document.getElementById('exchangeRateUpdate').textContent : '-') + 
+                '</span>';
+        }
         
         // 실시간 계산 트리거
         calculateRealtime();
