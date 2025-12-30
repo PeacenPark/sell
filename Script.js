@@ -201,7 +201,7 @@ function initializeModal() {
     const closeBtn = document.querySelector('.modal-close');
     
     // 모달 열기 (항상 새 등록 모드)
-    openBtn.addEventListener('click', function() {
+    openBtn.addEventListener('click', async function() {
         // 폼 초기화
         const form = document.getElementById('transactionForm');
         form.reset();
@@ -225,6 +225,9 @@ function initializeModal() {
         
         // 모달 헤더 설정
         document.querySelector('.modal-header h2').textContent = '➕ 새 거래 등록';
+        
+        // 최신 환율 자동 가져오기 및 USD 환율 자동 입력
+        await fetchExchangeRates();
         
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
@@ -787,9 +790,19 @@ async function fetchExchangeRates() {
     } catch (error) {
         console.error('❌ 환율 정보 가져오기 실패:', error);
         
-        // 실패해도 KRW는 항상 1.0으로 설정
+        // 실패 시 기본값 설정
         if (!exchangeRates.KRW) {
             exchangeRates.KRW = 1.0;
+        }
+        if (!exchangeRates.USD) {
+            exchangeRates.USD = 1300.0; // USD 기본값
+        }
+        
+        // USD 환율 자동 입력
+        const currencySelect = document.getElementById('currency');
+        const exchangeRateInput = document.getElementById('exchangeRate');
+        if (currencySelect && exchangeRateInput && currencySelect.value === 'USD') {
+            exchangeRateInput.value = exchangeRates.USD;
         }
         
         const updateText = document.getElementById('exchangeRateUpdate');
