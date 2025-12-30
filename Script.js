@@ -1714,6 +1714,9 @@ function getFilteredTransactions() {
         
         return periodMatch && buyerNameMatch && brandMatch && productMatch && 
                purchaseSiteMatch && platformMatch && currencyMatch;
+    }).sort((a, b) => {
+        // 구매일자 기준 내림차순 정렬 (최신이 먼저)
+        return new Date(b.purchaseDate) - new Date(a.purchaseDate);
     });
 }
 
@@ -1909,40 +1912,116 @@ function updateCharts(transactions) {
     updateBrandChart(transactions);
 }
 
-// 월별 매출/비용/이익 추이 차트
+// 기간별 매출/비용/이익 추이 차트 (일별/주별/월별 자동 전환)
 function updateMonthlyChart(transactions) {
     const ctx = document.getElementById('monthlyChart');
     if (!ctx) return;
 
-    // 월별 데이터 집계
-    const monthlyData = {};
+    const periodFilter = document.getElementById('periodFilter').value;
+    
+    // 기간에 따라 적절한 집계 단위 결정
+    let groupBy = 'month'; // 기본값: 월별
+    let labelFormat = (date) => `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+    let sortLimit = 12; // 최대 표시 개수
+    
+    // custom (직접입력)인 경우 기간 일수를 계산
+    if (periodFilter === 'custom') {
+        const startDateInput = document.getElementById('startDate').value;
+        const endDateInput = document.getElementById('endDate').value;
+        
+        if (startDateInput && endDateInput) {
+            const startDate = new Date(startDateInput);
+            const endDate = new Date(endDateInput);
+            const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1; // +1 to include both dates
+            
+            if (daysDiff <= 31) {
+                // 31일 이내 → 일별
+                groupBy = 'day';
+                labelFormat = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+                sortLimit = daysDiff;
+            } else if (daysDiff <= 93) {
+                // 31일 초과 ~ 93일(약 3개월) → 주별
+                groupBy = 'week';
+                labelFormat = (date) => {
+                    const weekNum = Math.ceil(date.getDate() / 7);
+                    return `${date.getMonth() + 1}월 ${weekNum}주`;
+                };
+                sortLimit = Math.ceil(daysDiff / 7);
+            } else {
+                // 93일 초과 → 월별
+                groupBy = 'month';
+                labelFormat = (date) => `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+                sortLimit = Math.ceil(daysDiff / 30);
+            }
+        }
+    } else if (periodFilter === 'week') {
+        // 이번 주 → 일별
+        groupBy = 'day';
+        labelFormat = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+        sortLimit = 7;
+    } else if (periodFilter === 'month') {
+        // 이번 달 → 일별
+        groupBy = 'day';
+        labelFormat = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+        sortLimit = 31;
+    } else if (periodFilter === 'quarter') {
+        // 최근 3개월 → 주별
+        groupBy = 'week';
+        labelFormat = (date) => {
+            const weekNum = Math.ceil(date.getDate() / 7);
+            return `${date.getMonth() + 1}월 ${weekNum}주`;
+        };
+        sortLimit = 13; // 약 13주
+    } else {
+        // 최근 6개월, 올해, 전체 → 월별
+        groupBy = 'month';
+        labelFormat = (date) => `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
+        sortLimit = 12;
+    }
+
+    // 데이터 집계
+    const chartData = {};
     transactions.forEach(t => {
         const date = new Date(t.purchaseDate);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        let key;
         
-        if (!monthlyData[monthKey]) {
-            monthlyData[monthKey] = { revenue: 0, cost: 0, profit: 0 };
+        if (groupBy === 'day') {
+            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        } else if (groupBy === 'week') {
+            const weekNum = Math.ceil(date.getDate() / 7);
+            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-W${weekNum}`;
+        } else {
+            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
         
-        monthlyData[monthKey].revenue += t.salePrice;
-        monthlyData[monthKey].cost += t.totalCost;
-        monthlyData[monthKey].profit += t.profit;
+        if (!chartData[key]) {
+            chartData[key] = { revenue: 0, cost: 0, profit: 0, date: date };
+        }
+        
+        chartData[key].revenue += t.salePrice;
+        chartData[key].cost += t.totalCost;
+        chartData[key].profit += t.profit;
     });
 
-    // 최근 12개월 데이터만 표시
-    const sortedMonths = Object.keys(monthlyData).sort().slice(-12);
-    const labels = sortedMonths.map(m => {
-        const [year, month] = m.split('-');
-        return `${year}년 ${month}월`;
+    // 정렬 및 제한
+    const sortedKeys = Object.keys(chartData).sort().slice(-sortLimit);
+    const labels = sortedKeys.map(key => {
+        return labelFormat(chartData[key].date);
     });
     
-    const revenueData = sortedMonths.map(m => Math.round(monthlyData[m].revenue));
-    const costData = sortedMonths.map(m => Math.round(monthlyData[m].cost));
-    const profitData = sortedMonths.map(m => Math.round(monthlyData[m].profit));
+    const revenueData = sortedKeys.map(key => Math.round(chartData[key].revenue));
+    const costData = sortedKeys.map(key => Math.round(chartData[key].cost));
+    const profitData = sortedKeys.map(key => Math.round(chartData[key].profit));
 
     if (charts.monthly) {
         charts.monthly.destroy();
     }
+
+    // 차트 제목 동적 변경
+    let chartTitle = '매출/비용/이익 추이';
+    if (groupBy === 'day') chartTitle = '일별 ' + chartTitle;
+    else if (groupBy === 'week') chartTitle = '주별 ' + chartTitle;
+    else chartTitle = '월별 ' + chartTitle;
 
     charts.monthly = new Chart(ctx, {
         type: 'line',
@@ -1980,6 +2059,14 @@ function updateMonthlyChart(transactions) {
                     display: true,
                     position: 'top'
                 },
+                title: {
+                    display: true,
+                    text: chartTitle,
+                    font: {
+                        size: 14,
+                        weight: 'bold'
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -1993,7 +2080,12 @@ function updateMonthlyChart(transactions) {
                     beginAtZero: true,
                     ticks: {
                         callback: function(value) {
-                            return (value / 1000000).toFixed(1) + 'M';
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return (value / 1000).toFixed(0) + 'K';
+                            }
+                            return value;
                         }
                     }
                 }
