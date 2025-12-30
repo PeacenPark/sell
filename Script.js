@@ -28,6 +28,8 @@ try {
 
 // 전역 변수
 let transactions = [];
+let exchangeRates = {}; // 환율 데이터 저장
+let lastExchangeRateUpdate = null; // 마지막 업데이트 시간
 
 // DOM 로드 완료 시 초기화
 document.addEventListener('DOMContentLoaded', async function() {
@@ -37,6 +39,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializeFilters();
     initializeButtons();
     loadCustomDropdownItems(); // 커스텀 드롭다운 항목 로드
+    
+    // 환율 정보 자동 로드
+    await fetchExchangeRates();
     
     // Firebase 또는 로컬스토리지에서 데이터 로드 (완료될 때까지 대기)
     await loadTransactions();
@@ -345,6 +350,18 @@ function initializeForm() {
             element.addEventListener('input', calculateRealtime);
         }
     });
+
+    // 통화 변경 시 자동 환율 입력
+    const currencySelect = document.getElementById('currency');
+    if (currencySelect) {
+        currencySelect.addEventListener('change', updateExchangeRateInput);
+    }
+
+    // 환율 업데이트 버튼
+    const updateExchangeRateBtn = document.getElementById('updateExchangeRateBtn');
+    if (updateExchangeRateBtn) {
+        updateExchangeRateBtn.addEventListener('click', fetchExchangeRates);
+    }
 
     // 폼 제출
     form.addEventListener('submit', async function(e) {
@@ -717,6 +734,85 @@ function initializeFilters() {
 }
 
 // ========================================
+// 환율 API 관리
+// ========================================
+
+// 환율 정보 가져오기
+async function fetchExchangeRates() {
+    try {
+        const updateBtn = document.getElementById('updateExchangeRateBtn');
+        const updateText = document.getElementById('exchangeRateUpdate');
+        
+        if (updateBtn) updateBtn.disabled = true;
+        if (updateText) updateText.textContent = '업데이트 중...';
+        
+        // ExchangeRate-API 사용 (무료, API 키 불필요)
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/KRW');
+        
+        if (!response.ok) {
+            throw new Error('환율 정보를 가져올 수 없습니다.');
+        }
+        
+        const data = await response.json();
+        
+        // 환율 데이터 저장 (KRW 기준이므로 역수 계산)
+        exchangeRates = {
+            USD: data.rates.USD ? (1 / data.rates.USD).toFixed(2) : 0,
+            EUR: data.rates.EUR ? (1 / data.rates.EUR).toFixed(2) : 0,
+            GBP: data.rates.GBP ? (1 / data.rates.GBP).toFixed(2) : 0,
+            JPY: data.rates.JPY ? (1 / data.rates.JPY).toFixed(2) : 0,
+            CNY: data.rates.CNY ? (1 / data.rates.CNY).toFixed(2) : 0
+        };
+        
+        // 마지막 업데이트 시간 저장
+        lastExchangeRateUpdate = new Date();
+        
+        // 업데이트 시간 표시
+        if (updateText) {
+            const timeStr = lastExchangeRateUpdate.toLocaleString('ko-KR', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            updateText.textContent = `최종 업데이트: ${timeStr}`;
+        }
+        
+        // 현재 선택된 통화의 환율 자동 입력
+        updateExchangeRateInput();
+        
+        console.log('✅ 환율 정보 업데이트 완료:', exchangeRates);
+        
+    } catch (error) {
+        console.error('❌ 환율 정보 가져오기 실패:', error);
+        const updateText = document.getElementById('exchangeRateUpdate');
+        if (updateText) {
+            updateText.textContent = '업데이트 실패 (수동 입력 가능)';
+        }
+    } finally {
+        const updateBtn = document.getElementById('updateExchangeRateBtn');
+        if (updateBtn) updateBtn.disabled = false;
+    }
+}
+
+// 선택된 통화에 맞는 환율 자동 입력
+function updateExchangeRateInput() {
+    const currencySelect = document.getElementById('currency');
+    const exchangeRateInput = document.getElementById('exchangeRate');
+    
+    if (!currencySelect || !exchangeRateInput) return;
+    
+    const selectedCurrency = currencySelect.value;
+    
+    if (selectedCurrency && exchangeRates[selectedCurrency]) {
+        exchangeRateInput.value = exchangeRates[selectedCurrency];
+        
+        // 실시간 계산 트리거
+        calculateRealtime();
+    }
+}
+
+// ========================================
 // 동적 드롭다운 관리
 // ========================================
 
@@ -734,13 +830,15 @@ function loadCustomDropdownItems() {
         brandSelect.insertBefore(option, customOption);
     });
 
-    // 브랜드 필터에도 추가
-    const filterBrandSelect = document.getElementById('filterBrand');
-    customBrands.forEach(brand => {
-        const option = document.createElement('option');
-        option.value = brand;
-        option.textContent = brand;
-        filterBrandSelect.appendChild(option);
+    // 브랜드 필터 datalist에 모달의 기본 브랜드 추가
+    const brandList = document.getElementById('brandList');
+    // 모달의 기본 브랜드 옵션 가져오기 (custom 제외)
+    Array.from(brandSelect.options).forEach(opt => {
+        if (opt.value && opt.value !== 'custom' && opt.value !== '') {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            brandList.appendChild(option);
+        }
     });
 
     // 구매사이트 로드
@@ -755,18 +853,20 @@ function loadCustomDropdownItems() {
         siteSelect.insertBefore(option, otherOption);
     });
 
-    // 필터 드롭다운에도 추가 (기타 항목 이전에 삽입)
-    const filterSiteSelect = document.getElementById('filterPurchaseSite');
-    const filterOtherOption = filterSiteSelect.querySelector('option[value="other"]');
+    // 구매사이트 필터 datalist에 모달의 기본 사이트 추가 (기타 항목 앞에)
+    const siteList = document.getElementById('siteList');
+    const otherSiteOption = Array.from(siteList.options).find(opt => opt.value === 'other');
     
-    customSites.forEach(site => {
-        const option = document.createElement('option');
-        option.value = site;
-        option.textContent = site;
-        if (filterOtherOption) {
-            filterSiteSelect.insertBefore(option, filterOtherOption);
-        } else {
-            filterSiteSelect.appendChild(option);
+    // 모달의 기본 사이트 옵션 가져오기 (other 제외)
+    Array.from(siteSelect.options).forEach(opt => {
+        if (opt.value && opt.value !== 'other' && opt.value !== '') {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            if (otherSiteOption) {
+                siteList.insertBefore(option, otherSiteOption);
+            } else {
+                siteList.appendChild(option);
+            }
         }
     });
 
@@ -813,7 +913,7 @@ function loadCustomDropdownItems() {
         const siteSelect = document.getElementById('purchaseSite');
         const selectedSite = siteSelect.value;
         
-        if (!selectedSite || selectedSite === 'other') {
+        if (!selectedSite || selectedSite === '' || selectedSite === 'other') {
             alert('삭제할 구매사이트를 선택하세요.');
             return;
         }
@@ -863,12 +963,11 @@ function addCustomBrand(brandName) {
     newOption.textContent = brandName;
     brandSelect.insertBefore(newOption, customOption);
 
-    // 필터 드롭다운에도 추가 (맨 뒤에)
-    const filterBrandSelect = document.getElementById('filterBrand');
+    // 필터 datalist에도 추가
+    const brandList = document.getElementById('brandList');
     const filterOption = document.createElement('option');
     filterOption.value = brandName;
-    filterOption.textContent = brandName;
-    filterBrandSelect.appendChild(filterOption);
+    brandList.appendChild(filterOption);
 
     // 방금 추가한 항목 선택
     brandSelect.value = brandName;
@@ -897,12 +996,17 @@ function addCustomSite(siteName) {
     newOption.textContent = siteName;
     siteSelect.insertBefore(newOption, otherOption);
 
-    // 필터 드롭다운에도 추가 (맨 뒤에)
-    const filterSiteSelect = document.getElementById('filterPurchaseSite');
+    // 필터 datalist에도 추가 (기타 항목 앞에 삽입)
+    const siteList = document.getElementById('siteList');
+    // 기타 항목 찾기
+    const otherSiteOption = Array.from(siteList.options).find(opt => opt.value === 'other');
     const filterOption = document.createElement('option');
     filterOption.value = siteName;
-    filterOption.textContent = siteName;
-    filterSiteSelect.appendChild(filterOption);
+    if (otherSiteOption) {
+        siteList.insertBefore(filterOption, otherSiteOption);
+    } else {
+        siteList.appendChild(filterOption);
+    }
 
     // 방금 추가한 항목 선택
     siteSelect.value = siteName;
@@ -928,11 +1032,11 @@ function removeCustomBrand(brandName) {
         brandSelect.removeChild(optionToRemove);
     }
 
-    // 필터 드롭다운에서도 제거
-    const filterBrandSelect = document.getElementById('filterBrand');
-    const filterOptionToRemove = Array.from(filterBrandSelect.options).find(opt => opt.value === brandName);
+    // 필터 datalist에서도 제거
+    const brandList = document.getElementById('brandList');
+    const filterOptionToRemove = Array.from(brandList.options).find(opt => opt.value === brandName);
     if (filterOptionToRemove) {
-        filterBrandSelect.removeChild(filterOptionToRemove);
+        brandList.removeChild(filterOptionToRemove);
     }
 
     // 첫 번째 항목 선택
@@ -959,11 +1063,11 @@ function removeCustomSite(siteName) {
         siteSelect.removeChild(optionToRemove);
     }
 
-    // 필터 드롭다운에서도 제거
-    const filterSiteSelect = document.getElementById('filterPurchaseSite');
-    const filterOptionToRemove = Array.from(filterSiteSelect.options).find(opt => opt.value === siteName);
+    // 필터 datalist에서도 제거
+    const siteList = document.getElementById('siteList');
+    const filterOptionToRemove = Array.from(siteList.options).find(opt => opt.value === siteName);
     if (filterOptionToRemove) {
-        filterSiteSelect.removeChild(filterOptionToRemove);
+        siteList.removeChild(filterOptionToRemove);
     }
 
     // 첫 번째 항목 선택
@@ -979,9 +1083,9 @@ function getFilteredTransactions() {
     
     // 추가 필터 값 가져오기
     const filterBuyerName = document.getElementById('filterBuyerName')?.value.toLowerCase().trim() || '';
-    const filterBrand = document.getElementById('filterBrand')?.value || '';
+    const filterBrand = document.getElementById('filterBrand')?.value.toLowerCase().trim() || '';
     const filterProduct = document.getElementById('filterProduct')?.value.toLowerCase().trim() || '';
-    const filterPurchaseSite = document.getElementById('filterPurchaseSite')?.value || '';
+    const filterPurchaseSite = document.getElementById('filterPurchaseSite')?.value.trim() || '';
     const filterPlatform = document.getElementById('filterPlatform')?.value || '';
     const filterCurrency = document.getElementById('filterCurrency')?.value || '';
     
@@ -1020,11 +1124,14 @@ function getFilteredTransactions() {
                 periodMatch = true;
         }
         
-        // 추가 필터 적용
+        // 추가 필터 적용 - 브랜드와 구매사이트는 검색 가능 (부분 일치)
         const buyerNameMatch = !filterBuyerName || t.buyerName.toLowerCase().includes(filterBuyerName);
-        const brandMatch = !filterBrand || t.brand === filterBrand; // 드롭다운이므로 정확히 일치
+        const brandMatch = !filterBrand || t.brand.toLowerCase().includes(filterBrand);
         const productMatch = !filterProduct || t.productName.toLowerCase().includes(filterProduct);
-        const purchaseSiteMatch = !filterPurchaseSite || t.purchaseSite === filterPurchaseSite;
+        // 구매사이트는 정확히 일치하거나 사용자가 직접 입력한 값으로 검색
+        const purchaseSiteMatch = !filterPurchaseSite || 
+            t.purchaseSite === filterPurchaseSite || 
+            (t.purchaseSite === 'other' && t.purchaseSiteCustom && t.purchaseSiteCustom.toLowerCase().includes(filterPurchaseSite.toLowerCase()));
         const platformMatch = !filterPlatform || t.platform === filterPlatform;
         const currencyMatch = !filterCurrency || t.currency === filterCurrency;
         
