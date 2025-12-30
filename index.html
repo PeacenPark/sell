@@ -108,9 +108,10 @@
                     </div>
                     <div class="filter-group">
                         <label for="filterBrand">브랜드</label>
-                        <select id="filterBrand">
+                        <input type="text" id="filterBrand" list="brandList" placeholder="브랜드 선택 또는 검색">
+                        <datalist id="brandList">
                             <option value="">전체</option>
-                        </select>
+                        </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filterProduct">품명</label>
@@ -118,10 +119,11 @@
                     </div>
                     <div class="filter-group">
                         <label for="filterPurchaseSite">구매사이트</label>
-                        <select id="filterPurchaseSite">
+                        <input type="text" id="filterPurchaseSite" list="siteList" placeholder="구매사이트 선택 또는 검색">
+                        <datalist id="siteList">
                             <option value="">전체</option>
                             <option value="other">기타</option>
-                        </select>
+                        </datalist>
                     </div>
                     <div class="filter-group">
                         <label for="filterPlatform">판매 플랫폼</label>
@@ -257,8 +259,11 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="exchangeRate">환율 *</label>
-                        <input type="number" id="exchangeRate" step="0.01" min="0" placeholder="예: 1330.50" required>
-                        <small class="hint">1 외화당 원화 환율</small>
+                        <div class="input-with-button">
+                            <input type="number" id="exchangeRate" step="0.01" min="0" placeholder="예: 1330.50" required>
+                            <button type="button" class="btn-refresh" id="updateExchangeRateBtn" title="최신 환율 가져오기">🔄</button>
+                        </div>
+                        <small class="hint" id="exchangeRateHint">1 외화당 원화 환율 | <span id="exchangeRateUpdate">-</span></small>
                     </div>
                     <div class="form-group">
                         <label for="salePrice">판매가격 (원) *</label>
