@@ -1,15 +1,14 @@
 // ========================================
 // Firebase 설정
 // ========================================
-// 여기에 Firebase 프로젝트 설정 정보를 입력하세요
 const firebaseConfig = {
     apiKey: "AIzaSyCCbE9e0s1azSOiTuSRkBlbgrA3DuqAy5M",
-  authDomain: "sell-b10e5.firebaseapp.com",
-  projectId: "sell-b10e5",
-  storageBucket: "sell-b10e5.firebasestorage.app",
-  messagingSenderId: "73854097432",
-  appId: "1:73854097432:web:8e8fa2f87ada9b07418b6d",
-  measurementId: "G-0PFPK1HVCZ"
+    authDomain: "sell-b10e5.firebaseapp.com",
+    projectId: "sell-b10e5",
+    storageBucket: "sell-b10e5.firebasestorage.app",
+    messagingSenderId: "73854097432",
+    appId: "1:73854097432:web:8e8fa2f87ada9b07418b6d",
+    measurementId: "G-0PFPK1HVCZ"
 };
 
 // Firebase 초기화
@@ -17,17 +16,11 @@ let db = null;
 let isFirebaseEnabled = false;
 
 try {
-    // Firebase 설정이 올바른지 확인
-    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
-        isFirebaseEnabled = true;
-        console.log('✅ Firebase 연결 성공');
-        updateSyncStatus(true);
-    } else {
-        console.log('⚠️ Firebase 설정이 필요합니다. firebaseConfig를 수정하세요.');
-        updateSyncStatus(false);
-    }
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    isFirebaseEnabled = true;
+    console.log('✅ Firebase 연결 성공');
+    updateSyncStatus(true);
 } catch (error) {
     console.error('❌ Firebase 초기화 오류:', error);
     updateSyncStatus(false);
@@ -43,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializeForm();
     initializeFilters();
     initializeButtons();
+    loadCustomDropdownItems(); // 커스텀 드롭다운 항목 로드
     
     // Firebase 또는 로컬스토리지에서 데이터 로드 (완료될 때까지 대기)
     await loadTransactions();
@@ -207,6 +201,10 @@ function initializeModal() {
         const form = document.getElementById('transactionForm');
         form.reset();
         form.removeAttribute('data-editing-id');
+        
+        // 브랜드 커스텀 입력 숨기기
+        document.getElementById('brandCustom').style.display = 'none';
+        document.getElementById('brandCustom').value = '';
         
         // 오늘 날짜로 설정
         const today = new Date().toISOString().split('T')[0];
@@ -393,10 +391,17 @@ async function addTransaction() {
     const editingId = form.getAttribute('data-editing-id');
     const isEditing = !!editingId;
 
+    // 브랜드 값 가져오기 (custom 선택 시 brandCustom 값 사용)
+    const brandSelect = document.getElementById('brand');
+    const brandValue = brandSelect.value === 'custom' ? 
+        document.getElementById('brandCustom').value : 
+        brandSelect.value;
+
     const transaction = {
         buyerName: document.getElementById('buyerName').value,
         buyerPhone: document.getElementById('buyerPhone').value,
-        brand: document.getElementById('brand').value,
+        buyerAddress: document.getElementById('buyerAddress').value,
+        brand: brandValue,
         productName: document.getElementById('productName').value,
         quantity: parseInt(document.getElementById('quantity').value),
         purchaseDate: document.getElementById('purchaseDate').value,
@@ -523,7 +528,24 @@ function editTransaction(id) {
     // 폼에 기존 데이터 채우기
     document.getElementById('buyerName').value = transaction.buyerName;
     document.getElementById('buyerPhone').value = transaction.buyerPhone;
-    document.getElementById('brand').value = transaction.brand;
+    document.getElementById('buyerAddress').value = transaction.buyerAddress || '';
+    
+    // 브랜드 처리
+    const brandSelect = document.getElementById('brand');
+    const brandCustomInput = document.getElementById('brandCustom');
+    const brandOptions = Array.from(brandSelect.options).map(opt => opt.value);
+    
+    if (brandOptions.includes(transaction.brand)) {
+        // 드롭다운에 있는 브랜드
+        brandSelect.value = transaction.brand;
+        brandCustomInput.style.display = 'none';
+    } else {
+        // 드롭다운에 없는 브랜드 (직접 입력)
+        brandSelect.value = 'custom';
+        brandCustomInput.style.display = 'block';
+        brandCustomInput.value = transaction.brand;
+    }
+    
     document.getElementById('productName').value = transaction.productName;
     document.getElementById('quantity').value = transaction.quantity;
     document.getElementById('purchaseDate').value = transaction.purchaseDate;
@@ -580,6 +602,7 @@ function displayTransactions() {
                 <div class="transaction-title">
                     <h3>${t.brand} - ${t.productName}</h3>
                     <p class="buyer-info">👤 ${t.buyerName} | 📞 ${t.buyerPhone}</p>
+                    ${t.buyerAddress ? `<p class="buyer-address">📍 ${t.buyerAddress}</p>` : ''}
                 </div>
                 <div class="transaction-date">${formatDate(t.purchaseDate)}</div>
             </div>
@@ -693,6 +716,262 @@ function initializeFilters() {
     });
 }
 
+// ========================================
+// 동적 드롭다운 관리
+// ========================================
+
+// 커스텀 드롭다운 항목 로드
+function loadCustomDropdownItems() {
+    // 브랜드 로드
+    const customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    const brandSelect = document.getElementById('brand');
+    const customOption = brandSelect.querySelector('option[value="custom"]');
+    
+    customBrands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        brandSelect.insertBefore(option, customOption);
+    });
+
+    // 브랜드 필터에도 추가
+    const filterBrandSelect = document.getElementById('filterBrand');
+    customBrands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        filterBrandSelect.appendChild(option);
+    });
+
+    // 구매사이트 로드
+    const customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    const siteSelect = document.getElementById('purchaseSite');
+    const otherOption = siteSelect.querySelector('option[value="other"]');
+    
+    customSites.forEach(site => {
+        const option = document.createElement('option');
+        option.value = site;
+        option.textContent = site;
+        siteSelect.insertBefore(option, otherOption);
+    });
+
+    // 필터 드롭다운에도 추가 (기타 항목 이전에 삽입)
+    const filterSiteSelect = document.getElementById('filterPurchaseSite');
+    const filterOtherOption = filterSiteSelect.querySelector('option[value="other"]');
+    
+    customSites.forEach(site => {
+        const option = document.createElement('option');
+        option.value = site;
+        option.textContent = site;
+        if (filterOtherOption) {
+            filterSiteSelect.insertBefore(option, filterOtherOption);
+        } else {
+            filterSiteSelect.appendChild(option);
+        }
+    });
+
+    // 브랜드 추가 버튼 이벤트
+    document.getElementById('addBrandBtn').addEventListener('click', function() {
+        const newBrand = prompt('새 브랜드 이름을 입력하세요:');
+        if (newBrand && newBrand.trim()) {
+            const brandName = newBrand.trim();
+            addCustomBrand(brandName);
+        }
+    });
+
+    // 브랜드 삭제 버튼 이벤트
+    document.getElementById('removeBrandBtn').addEventListener('click', function() {
+        const brandSelect = document.getElementById('brand');
+        const selectedBrand = brandSelect.value;
+        
+        if (!selectedBrand || selectedBrand === '' || selectedBrand === 'custom') {
+            alert('삭제할 브랜드를 선택하세요.');
+            return;
+        }
+        
+        // 기본 제공 브랜드는 삭제 불가
+        const defaultBrands = ['Nike', 'Adidas', 'Apple', 'Samsung', 'Sony'];
+        if (defaultBrands.includes(selectedBrand)) {
+            alert('기본 제공 브랜드는 삭제할 수 없습니다.');
+            return;
+        }
+        
+        removeCustomBrand(selectedBrand);
+    });
+
+    // 구매사이트 추가 버튼 이벤트
+    document.getElementById('addSiteBtn').addEventListener('click', function() {
+        const newSite = prompt('새 구매사이트 이름을 입력하세요:');
+        if (newSite && newSite.trim()) {
+            const siteName = newSite.trim();
+            addCustomSite(siteName);
+        }
+    });
+
+    // 구매사이트 삭제 버튼 이벤트
+    document.getElementById('removeSiteBtn').addEventListener('click', function() {
+        const siteSelect = document.getElementById('purchaseSite');
+        const selectedSite = siteSelect.value;
+        
+        if (!selectedSite || selectedSite === 'other') {
+            alert('삭제할 구매사이트를 선택하세요.');
+            return;
+        }
+        
+        // 기본 제공 사이트는 삭제 불가
+        const defaultSites = ['amazon', 'ebay', 'aliexpress', 'rakuten', 'iherb', 'costco'];
+        if (defaultSites.includes(selectedSite)) {
+            alert('기본 제공 구매사이트는 삭제할 수 없습니다.');
+            return;
+        }
+        
+        removeCustomSite(selectedSite);
+    });
+
+    // 브랜드 선택 이벤트
+    brandSelect.addEventListener('change', function() {
+        const customInput = document.getElementById('brandCustom');
+        if (this.value === 'custom') {
+            customInput.style.display = 'block';
+            customInput.required = true;
+        } else {
+            customInput.style.display = 'none';
+            customInput.required = false;
+            customInput.value = '';
+        }
+    });
+}
+
+// 커스텀 브랜드 추가
+function addCustomBrand(brandName) {
+    const customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    
+    // 중복 체크
+    if (customBrands.includes(brandName)) {
+        alert('이미 존재하는 브랜드입니다.');
+        return;
+    }
+
+    customBrands.push(brandName);
+    localStorage.setItem('customBrands', JSON.stringify(customBrands));
+
+    // 폼 드롭다운에 추가 (직접 입력 앞에)
+    const brandSelect = document.getElementById('brand');
+    const customOption = brandSelect.querySelector('option[value="custom"]');
+    const newOption = document.createElement('option');
+    newOption.value = brandName;
+    newOption.textContent = brandName;
+    brandSelect.insertBefore(newOption, customOption);
+
+    // 필터 드롭다운에도 추가 (맨 뒤에)
+    const filterBrandSelect = document.getElementById('filterBrand');
+    const filterOption = document.createElement('option');
+    filterOption.value = brandName;
+    filterOption.textContent = brandName;
+    filterBrandSelect.appendChild(filterOption);
+
+    // 방금 추가한 항목 선택
+    brandSelect.value = brandName;
+    
+    alert(`"${brandName}" 브랜드가 추가되었습니다!`);
+}
+
+// 커스텀 구매사이트 추가
+function addCustomSite(siteName) {
+    const customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    
+    // 중복 체크
+    if (customSites.includes(siteName)) {
+        alert('이미 존재하는 구매사이트입니다.');
+        return;
+    }
+
+    customSites.push(siteName);
+    localStorage.setItem('customSites', JSON.stringify(customSites));
+
+    // 폼 드롭다운에 추가 (기타 앞에)
+    const siteSelect = document.getElementById('purchaseSite');
+    const otherOption = siteSelect.querySelector('option[value="other"]');
+    const newOption = document.createElement('option');
+    newOption.value = siteName;
+    newOption.textContent = siteName;
+    siteSelect.insertBefore(newOption, otherOption);
+
+    // 필터 드롭다운에도 추가 (맨 뒤에)
+    const filterSiteSelect = document.getElementById('filterPurchaseSite');
+    const filterOption = document.createElement('option');
+    filterOption.value = siteName;
+    filterOption.textContent = siteName;
+    filterSiteSelect.appendChild(filterOption);
+
+    // 방금 추가한 항목 선택
+    siteSelect.value = siteName;
+    
+    alert(`"${siteName}" 구매사이트가 추가되었습니다!`);
+}
+
+// 커스텀 브랜드 삭제
+function removeCustomBrand(brandName) {
+    if (!confirm(`"${brandName}" 브랜드를 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    // 로컬스토리지에서 제거
+    let customBrands = JSON.parse(localStorage.getItem('customBrands') || '[]');
+    customBrands = customBrands.filter(brand => brand !== brandName);
+    localStorage.setItem('customBrands', JSON.stringify(customBrands));
+
+    // 폼 드롭다운에서 제거
+    const brandSelect = document.getElementById('brand');
+    const optionToRemove = Array.from(brandSelect.options).find(opt => opt.value === brandName);
+    if (optionToRemove) {
+        brandSelect.removeChild(optionToRemove);
+    }
+
+    // 필터 드롭다운에서도 제거
+    const filterBrandSelect = document.getElementById('filterBrand');
+    const filterOptionToRemove = Array.from(filterBrandSelect.options).find(opt => opt.value === brandName);
+    if (filterOptionToRemove) {
+        filterBrandSelect.removeChild(filterOptionToRemove);
+    }
+
+    // 첫 번째 항목 선택
+    brandSelect.selectedIndex = 0;
+    
+    alert(`"${brandName}" 브랜드가 삭제되었습니다.`);
+}
+
+// 커스텀 구매사이트 삭제
+function removeCustomSite(siteName) {
+    if (!confirm(`"${siteName}" 구매사이트를 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    // 로컬스토리지에서 제거
+    let customSites = JSON.parse(localStorage.getItem('customSites') || '[]');
+    customSites = customSites.filter(site => site !== siteName);
+    localStorage.setItem('customSites', JSON.stringify(customSites));
+
+    // 폼 드롭다운에서 제거
+    const siteSelect = document.getElementById('purchaseSite');
+    const optionToRemove = Array.from(siteSelect.options).find(opt => opt.value === siteName);
+    if (optionToRemove) {
+        siteSelect.removeChild(optionToRemove);
+    }
+
+    // 필터 드롭다운에서도 제거
+    const filterSiteSelect = document.getElementById('filterPurchaseSite');
+    const filterOptionToRemove = Array.from(filterSiteSelect.options).find(opt => opt.value === siteName);
+    if (filterOptionToRemove) {
+        filterSiteSelect.removeChild(filterOptionToRemove);
+    }
+
+    // 첫 번째 항목 선택
+    siteSelect.selectedIndex = 0;
+    
+    alert(`"${siteName}" 구매사이트가 삭제되었습니다.`);
+}
+
 // 필터링된 거래 가져오기
 function getFilteredTransactions() {
     const periodFilter = document.getElementById('periodFilter').value;
@@ -700,7 +979,7 @@ function getFilteredTransactions() {
     
     // 추가 필터 값 가져오기
     const filterBuyerName = document.getElementById('filterBuyerName')?.value.toLowerCase().trim() || '';
-    const filterBrand = document.getElementById('filterBrand')?.value.toLowerCase().trim() || '';
+    const filterBrand = document.getElementById('filterBrand')?.value || '';
     const filterProduct = document.getElementById('filterProduct')?.value.toLowerCase().trim() || '';
     const filterPurchaseSite = document.getElementById('filterPurchaseSite')?.value || '';
     const filterPlatform = document.getElementById('filterPlatform')?.value || '';
@@ -743,7 +1022,7 @@ function getFilteredTransactions() {
         
         // 추가 필터 적용
         const buyerNameMatch = !filterBuyerName || t.buyerName.toLowerCase().includes(filterBuyerName);
-        const brandMatch = !filterBrand || t.brand.toLowerCase().includes(filterBrand);
+        const brandMatch = !filterBrand || t.brand === filterBrand; // 드롭다운이므로 정확히 일치
         const productMatch = !filterProduct || t.productName.toLowerCase().includes(filterProduct);
         const purchaseSiteMatch = !filterPurchaseSite || t.purchaseSite === filterPurchaseSite;
         const platformMatch = !filterPlatform || t.platform === filterPlatform;
@@ -782,13 +1061,14 @@ function exportToExcel() {
     }
 
     let csv = '\ufeff'; // UTF-8 BOM
-    csv += '구매일자,구매자명,연락처,브랜드,품명,수량,구매사이트,구매가격(배송비포함),통화,환율,구매가격(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
+    csv += '구매일자,구매자명,연락처,배송지주소,브랜드,품명,수량,구매사이트,구매가격(배송비포함),통화,환율,구매가격(원),판매가격,판매플랫폼,수수료율(%),수수료(원),관부과세,국내배송비,총비용,순이익,마진률(%)\n';
     
     filteredTransactions.forEach(t => {
         csv += [
             t.purchaseDate,
             t.buyerName,
             t.buyerPhone,
+            t.buyerAddress || '',
             t.brand,
             t.productName,
             t.quantity,
@@ -890,12 +1170,12 @@ function getPlatformName(platform) {
 
 function getPurchaseSiteName(site, customName) {
     const names = {
-        'amazon': 'Amazon (아마존)',
-        'ebay': 'eBay (이베이)',
-        'aliexpress': 'AliExpress (알리익스프레스)',
-        'rakuten': '楽天 (라쿠텐)',
-        'iherb': 'iHerb (아이허브)',
-        'costco': 'Costco (코스트코)',
+        'amazon': 'Amazon',
+        'ebay': 'eBay',
+        'aliexpress': 'AliExpress',
+        'rakuten': '楽天',
+        'iherb': 'iHerb',
+        'costco': 'Costco',
         'other': customName || '기타'
     };
     return names[site] || site;
