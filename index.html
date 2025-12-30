@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>해외 직구 구매 대행 관리 시스템</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌍 해외 직구 구매 대행 관리</h1>
+            <div class="sync-status">
+                <span id="syncStatus" class="status-offline">⚫ 오프라인</span>
+            </div>
+        </header>
+
+        <!-- 탭 네비게이션 -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="statistics">📊 통계</button>
+            <button class="tab-btn" data-tab="transactions">📋 거래 내역</button>
+        </nav>
+
+        <!-- 통계 탭 -->
+        <div id="statisticsTab" class="tab-content active">
+            <div class="filter-section">
+                <label>기간 선택:</label>
+                <select id="periodFilter">
+                    <option value="all">전체 기간</option>
+                    <option value="today">오늘</option>
+                    <option value="week">이번 주</option>
+                    <option value="month">이번 달</option>
+                    <option value="year">올해</option>
+                    <option value="custom">직접 입력</option>
+                </select>
+                <div id="customDateRange" style="display: none;">
+                    <input type="date" id="startDate">
+                    <span>~</span>
+                    <input type="date" id="endDate">
+                    <button id="applyCustomDate">적용</button>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>총 매출</h3>
+                    <p class="stat-value" id="totalRevenue">0원</p>
+                </div>
+                <div class="stat-card">
+                    <h3>총 비용</h3>
+                    <p class="stat-value" id="totalCost">0원</p>
+                </div>
+                <div class="stat-card">
+                    <h3>순이익</h3>
+                    <p class="stat-value profit" id="totalProfit">0원</p>
+                </div>
+                <div class="stat-card">
+                    <h3>평균 마진률</h3>
+                    <p class="stat-value" id="avgMargin">0%</p>
+                </div>
+            </div>
+
+            <!-- 그래프 섹션 -->
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>📈 월별 매출/비용/이익 추이</h3>
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+                
+                <div class="charts-row">
+                    <div class="chart-container half">
+                        <h3>🛒 구매사이트별 거래 비율</h3>
+                        <canvas id="purchaseSiteChart"></canvas>
+                    </div>
+                    <div class="chart-container half">
+                        <h3>💰 판매 플랫폼별 매출</h3>
+                        <canvas id="platformChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <div class="chart-container half">
+                        <h3>💱 통화별 거래 건수</h3>
+                        <canvas id="currencyChart"></canvas>
+                    </div>
+                    <div class="chart-container half">
+                        <h3>📊 브랜드별 Top 10 매출</h3>
+                        <canvas id="brandChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 거래 내역 탭 -->
+        <div id="transactionsTab" class="tab-content">
+            <div class="section-header">
+                <div class="action-buttons">
+                    <button id="exportBtn" class="btn-export">📥 엑셀 다운로드</button>
+                </div>
+            </div>
+
+            <!-- 필터링 섹션 -->
+            <div class="filter-panel">
+                <h3>🔍 상세 필터</h3>
+                <div class="filter-grid">
+                    <div class="filter-group">
+                        <label for="filterBuyerName">구매자 이름</label>
+                        <input type="text" id="filterBuyerName" placeholder="이름 검색">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterBrand">브랜드</label>
+                        <input type="text" id="filterBrand" placeholder="브랜드 검색">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterProduct">품명</label>
+                        <input type="text" id="filterProduct" placeholder="품명 검색">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterPurchaseSite">구매사이트</label>
+                        <select id="filterPurchaseSite">
+                            <option value="">전체</option>
+                            <option value="amazon">Amazon</option>
+                            <option value="ebay">eBay</option>
+                            <option value="aliexpress">AliExpress</option>
+                            <option value="rakuten">楽天</option>
+                            <option value="iherb">iHerb</option>
+                            <option value="costco">Costco</option>
+                            <option value="other">기타</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterPlatform">판매 플랫폼</label>
+                        <select id="filterPlatform">
+                            <option value="">전체</option>
+                            <option value="coupang">쿠팡</option>
+                            <option value="naver">네이버 쇼핑</option>
+                            <option value="street11">11번가</option>
+                            <option value="gmarket">G마켓</option>
+                            <option value="auction">옥션</option>
+                            <option value="direct">직거래</option>
+                            <option value="custom">기타</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterCurrency">통화</label>
+                        <select id="filterCurrency">
+                            <option value="">전체</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="JPY">JPY</option>
+                            <option value="CNY">CNY</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button id="resetFiltersBtn" class="btn-reset">🔄 필터 초기화</button>
+                    <span id="filterResultCount" class="filter-count">전체 0건</span>
+                </div>
+            </div>
+
+            <div id="transactionsList" class="transactions-list">
+                <p class="empty-message">등록된 거래 내역이 없습니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 플로팅 버튼 -->
+    <button id="addTransactionBtn" class="floating-btn">➕</button>
+
+    <!-- 거래 등록 모달 -->
+    <div id="transactionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ 새 거래 등록</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="transactionForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="buyerName">구매자 이름 *</label>
+                        <input type="text" id="buyerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="buyerPhone">연락처 *</label>
+                        <input type="tel" id="buyerPhone" placeholder="010-1234-5678" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="brand">브랜드 *</label>
+                        <input type="text" id="brand" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="productName">품명 *</label>
+                        <input type="text" id="productName" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="quantity">수량 *</label>
+                        <input type="number" id="quantity" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseDate">구매일자 *</label>
+                        <input type="date" id="purchaseDate" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="purchaseSite">구매사이트 *</label>
+                        <select id="purchaseSite" required>
+                            <option value="amazon">Amazon (아마존)</option>
+                            <option value="ebay">eBay (이베이)</option>
+                            <option value="aliexpress">AliExpress (알리익스프레스)</option>
+                            <option value="rakuten">楽天 (라쿠텐)</option>
+                            <option value="iherb">iHerb (아이허브)</option>
+                            <option value="costco">Costco (코스트코)</option>
+                            <option value="other">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchaseSiteCustom">사이트명 (기타 선택시)</label>
+                        <input type="text" id="purchaseSiteCustom" placeholder="직접 입력" disabled>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="purchasePrice">구매가격(배송비포함) *</label>
+                        <input type="number" id="purchasePrice" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="currency">통화 *</label>
+                        <select id="currency" required>
+                            <option value="USD">USD (달러)</option>
+                            <option value="EUR">EUR (유로)</option>
+                            <option value="GBP">GBP (파운드)</option>
+                            <option value="JPY">JPY (엔화)</option>
+                            <option value="CNY">CNY (위안)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="exchangeRate">환율 *</label>
+                        <input type="number" id="exchangeRate" step="0.01" min="0" placeholder="예: 1330.50" required>
+                        <small class="hint">1 외화당 원화 환율</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="salePrice">판매가격 (원) *</label>
+                        <input type="number" id="salePrice" min="0" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="platform">판매 플랫폼 *</label>
+                        <select id="platform" required>
+                            <option value="coupang">쿠팡</option>
+                            <option value="naver">네이버 쇼핑</option>
+                            <option value="street11">11번가</option>
+                            <option value="gmarket">G마켓</option>
+                            <option value="auction">옥션</option>
+                            <option value="direct">직거래</option>
+                            <option value="custom">직접 입력</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="platformFee">판매 수수료율 (%)</label>
+                        <input type="number" id="platformFee" step="0.1" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="customsDuty">관부과세 (원)</label>
+                        <input type="number" id="customsDuty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="shippingFee">국내배송비 (원)</label>
+                        <input type="number" id="shippingFee" min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="calculation-result">
+                    <div class="calc-item">
+                        <span>총 비용:</span>
+                        <strong id="calcTotalCost">0원</strong>
+                    </div>
+                    <div class="calc-item">
+                        <span>순이익:</span>
+                        <strong id="calcProfit" class="profit">0원</strong>
+                    </div>
+                    <div class="calc-item">
+                        <span>마진률:</span>
+                        <strong id="calcMargin">0%</strong>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit">등록하기</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
